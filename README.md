@@ -207,7 +207,7 @@ Download Article
 
 <div align="center">
 
-## Ankit Gupta
+## ANKIT GUPTA 👦
 
 ### AI Engineer • AI Backend Developer • GenAI & Agentic AI Developer
 
