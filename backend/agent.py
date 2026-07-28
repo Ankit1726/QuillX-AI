@@ -8,6 +8,7 @@ from langgraph.types import Send
 from langgraph.checkpoint.postgres import PostgresSaver
 
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
@@ -42,13 +43,61 @@ def _require_env(name: str) -> str:
         )
     return value
 
-
 _require_env("GROQ_API_KEY")
 _require_env("TAVILY_API_KEY")
 
 
 ## LLM
-llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.5, streaming=True)
+_rate_limiter = InMemoryRateLimiter(
+    requests_per_second=0.15,
+    check_every_n_seconds=0.1,
+    max_bucket_size=2,
+)
+
+llm = ChatGroq(
+    model="openai/gpt-oss-120b",
+    temperature=0.5,
+    streaming=True,
+    rate_limiter=_rate_limiter,
+    max_retries=6,
+)
+
+llm_structured = ChatGroq(
+    model="openai/gpt-oss-20b",
+    temperature=0.2,
+    streaming=False,
+    rate_limiter=_rate_limiter,
+    max_retries=6,
+)
+
+
+def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 3):
+    """
+    Even with streaming off, Groq's tool-calling can occasionally still
+    return a malformed/incomplete tool call (a transient model issue,
+    not something we can fix client-side). Retry a few times before
+    giving up, since a repeat call usually succeeds.
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return structured_runnable.invoke(messages)
+        except Exception as error:  # groq.APIError and friends
+            last_error = error
+            message = str(error)
+            is_tool_call_glitch = (
+                "Tool call validation failed" in message
+                or "Failed to parse tool call arguments" in message
+                or "tool_use_failed" in message
+            )
+            if not is_tool_call_glitch or attempt == attempts:
+                raise
+            # brief pause before retrying so we don't immediately
+            # repeat into the same rate-limit window
+            import time
+
+            time.sleep(1.5 * attempt)
+    raise last_error  # pragma: no cover
 
 
 class State(TypedDict):
@@ -75,12 +124,13 @@ class State(TypedDict):
 def router_node(state: State) -> dict:
 
     topic = state["topic"]
-    decider = llm.with_structured_output(RouterDecision)
-    decision = decider.invoke(
+    decider = llm_structured.with_structured_output(RouterDecision)
+    decision = invoke_structured_with_retry(
+        decider,
         [
             SystemMessage(content=ROUTER_SYSTEM),
             HumanMessage(content=f"Topic: {topic}"),
-        ]
+        ],
     )
 
     return {
@@ -100,6 +150,9 @@ def tavily_search(query: str, max_results: int = 5) -> List[dict]:
         tool = TavilySearchResults(max_results=max_results)
         results = tool.invoke({"query": query})
     except Exception as error:
+        # Don't let one bad query kill the whole research node —
+        # log it (via exception re-raise info) and return no results
+        # for this query so other queries can still succeed.
         raise RuntimeError(
             f"Tavily search failed for query '{query}': {error}"
         ) from error
@@ -161,15 +214,19 @@ def research_node(state: State) -> dict:
 
     if not raw_results:
         return {"evidence": []}
+
+    # Cap total items and snippet size sent to the LLM so we stay
+    # under Groq's tokens-per-minute limit (was causing 413 errors).
     trimmed_results = _trim_raw_results(raw_results)
 
-    extractor = llm.with_structured_output(EvidencePack)
+    extractor = llm_structured.with_structured_output(EvidencePack)
     try:
-        pack = extractor.invoke(
+        pack = invoke_structured_with_retry(
+            extractor,
             [
                 SystemMessage(content=RESEARCH_SYSTEM),
                 HumanMessage(content=f"Raw results:\n{trimmed_results}"),
-            ]
+            ],
         )
     except Exception as error:
         # If it's still too large (or Groq rate-limits us) don't
@@ -187,10 +244,11 @@ def research_node(state: State) -> dict:
 
 ## Orchestrator Node
 def orchestrator_node(state: State) -> dict:
-    planner = llm.with_structured_output(Plan)
+    planner = llm_structured.with_structured_output(Plan)
     evidence = state.get("evidence", [])
     mode = state.get("mode", "closed_book")
-    plan = planner.invoke(
+    plan = invoke_structured_with_retry(
+        planner,
         [
             SystemMessage(content=ORCH_SYSTEM),
             HumanMessage(
@@ -201,7 +259,7 @@ def orchestrator_node(state: State) -> dict:
                     f"{[e.model_dump() for e in evidence][:16]}"
                 )
             ),
-        ]
+        ],
     )
     return {"plan": plan}
 
@@ -293,24 +351,40 @@ def merge_content(state: State) -> dict:
 
 # Decide Images
 def decide_images(state: State) -> dict:
-    planner = llm.with_structured_output(GlobalImagePlan)
+    planner = llm_structured.with_structured_output(GlobalImagePlan)
     merged_md = state["merged_md"]
     plan = state["plan"]
     assert plan is not None
 
-    image_plan = planner.invoke(
-        [
-            SystemMessage(content=DECIDE_IMAGES_SYSTEM),
-            HumanMessage(
-                content=(
-                    f"Blog kind: {plan.blog_kind}\n"
-                    f"Topic: {state['topic']}\n\n"
-                    "Insert placeholders + propose image prompts.\n\n"
-                    f"{merged_md}"
-                )
-            ),
-        ]
-    )
+    try:
+        image_plan = invoke_structured_with_retry(
+            planner,
+            [
+                SystemMessage(content=DECIDE_IMAGES_SYSTEM),
+                HumanMessage(
+                    content=(
+                        f"Blog kind: {plan.blog_kind}\n"
+                        f"Topic: {state['topic']}\n\n"
+                        "Insert placeholders + propose image prompts.\n\n"
+                        f"{merged_md}"
+                    )
+                ),
+            ],
+            attempts=1,  # fail fast into the no-images fallback below
+        )
+    except Exception as error:
+        message = str(error)
+        is_json_or_tool_failure = (
+            "Failed to parse tool call arguments" in message
+            or "Tool call validation failed" in message
+            or "tool_use_failed" in message
+        )
+        if is_json_or_tool_failure:
+            return {
+                "md_with_placeholders": merged_md,
+                "image_specs": [],
+            }
+        raise
 
     return {
         "md_with_placeholders": image_plan.md_with_placeholders,
@@ -442,8 +516,11 @@ g.add_conditional_edges("orchestrator", fanout, ["worker"])
 g.add_edge("worker", "reducer")
 g.add_edge("reducer", END)
 
-
+## ---------------------------------------------------------------
 ## PostgreSQL Checkpointer
+## Wrapped so a DB connection problem gives ONE clear error message
+## at startup instead of a raw psycopg traceback.
+## ---------------------------------------------------------------
 try:
     DATABASE = get_database()
     if not DATABASE:

@@ -13,12 +13,9 @@ from backend.agent import app as workflow
 
 ## Paths
 BASE_DIR = Path(__file__).resolve().parent
-
 FRONTEND_DIR = BASE_DIR / "frontend"
-
 STATIC_DIR = FRONTEND_DIR / "static"
 TEMPLATES_DIR = FRONTEND_DIR / "templates"
-
 IMAGES_DIR = BASE_DIR / "images"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
@@ -70,7 +67,7 @@ class AgentRunRequest(BaseModel):
     )
 
 
-## SErialization Helpers
+## Serialization Helpers
 def make_serializable(value: Any) -> Any:
     """
     Recursively convert Pydantic models and other values
@@ -228,7 +225,8 @@ def stream_workflow(
     config = {
         "configurable": {
             "thread_id": run_id,
-        }
+        },
+        "max_concurrency": 2,
     }
 
     workflow_input = {
