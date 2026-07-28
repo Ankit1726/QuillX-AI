@@ -59,7 +59,7 @@ The system coordinates multiple AI agents that work together to:
 
 ### ***📸 Project Preview***
 
-#### ***Home Dashboard***
+### ***Home Dashboard***
 
 <p align="center">
 <img src="./preview/ui.png" width="100%">
@@ -67,7 +67,7 @@ The system coordinates multiple AI agents that work together to:
 
 ---
 
-#### ***Final Output***
+### ***Final Output***
 
 <p align="center">
 <img src="./preview/results.png" width="100%">
@@ -75,7 +75,7 @@ The system coordinates multiple AI agents that work together to:
 
 ---
 
-#### ***Features ✨***
+### ***Features ✨***
 
 - 🤖 Multi-Agent AI Workflow
 - 📚 Automatic Research
@@ -207,7 +207,7 @@ Download Article
 
 <div align="center">
 
-#### Ankit Gupta
+## Ankit Gupta
 
 ### AI Engineer • AI Backend Developer • GenAI & Agentic AI Developer
 
