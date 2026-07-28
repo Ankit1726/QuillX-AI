@@ -53,7 +53,7 @@ The system coordinates multiple AI agents that work together to:
 ### 🚀 Live Demo
 
 - 🌐 Web Application
-> **🔗 [QuillX-AI Live Demo](https://quillx-ai.onrender.com/)**
+> **🔗 [QuillX-AI](https://quillx-ai.onrender.com/)**
 
 ---
 
