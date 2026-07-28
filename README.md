@@ -17,8 +17,6 @@ Generate complete technical articles with **Research • Planning • Writing �
 <img src="https://img.shields.io/badge/LangGraph-Multi--Agent-orange?style=for-the-badge"/>
 <img src="https://img.shields.io/badge/LangChain-Framework-blueviolet?style=for-the-badge"/>
 <img src="https://img.shields.io/badge/Groq-LLM-purple?style=for-the-badge"/>
-<img src="https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge&logo=react"/>
-<img src="https://img.shields.io/badge/TailwindCSS-Styling-38BDF8?style=for-the-badge&logo=tailwind-css"/>
 <img src="https://img.shields.io/badge/Open_Source-❤-red?style=for-the-badge"/>
 
 </p>
