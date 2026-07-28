@@ -1,142 +1,242 @@
-# 🚀 QuillX-AI
+<div align="center">
 
-> **AI-powered Technical Blog Writer built with FastAPI, LangGraph, and
-> Groq**
+###  ***QuillX-AI***
 
-**🌐 Live Demo:** https://quillx-ai.onrender.com
+#### 🤖 Multi-Agent AI Technical Article Generator powered by LangGraph
 
-------------------------------------------------------------------------
+Generate complete technical articles with **Research • Planning • Writing • Markdown Export • AI Workflow**
 
-## Overview
+<p align="center">
+<img src="https://readme-typing-svg.herokuapp.com?font=Poppins&weight=600&size=24&duration=3500&pause=1000&color=57F287&center=true&vCenter=true&width=800&lines=Multi-Agent+Technical+Article+Generator;Built+with+LangGraph+%2B+FastAPI;Research+%7C+Planning+%7C+Writing+Automation;Built+by+Ankit+Gupta" />
+</p>
 
-QuillX-AI is an Agentic AI application that automates the complete
-technical article creation workflow. Instead of generating a single
-response, the system plans, researches, writes, reviews, and assembles
-production-ready technical articles through a multi-step LangGraph
-workflow.
+<p align="center">
 
-## ✨ Features
+<img src="https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python"/>
+<img src="https://img.shields.io/badge/FastAPI-Backend-green?style=for-the-badge&logo=fastapi"/>
+<img src="https://img.shields.io/badge/LangGraph-Multi--Agent-orange?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/LangChain-Framework-blueviolet?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/Groq-LLM-purple?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge&logo=react"/>
+<img src="https://img.shields.io/badge/TailwindCSS-Styling-38BDF8?style=for-the-badge&logo=tailwind-css"/>
+<img src="https://img.shields.io/badge/Open_Source-❤-red?style=for-the-badge"/>
 
--   🤖 Multi-agent workflow powered by LangGraph
--   🔎 Research-first article generation
--   📝 Structured article planning
--   📚 Long-form technical blog writing
--   ⚡ Fast inference using Groq LLMs
--   🎨 Clean modern FastAPI + HTML/CSS/JavaScript UI
--   📄 Markdown export
--   📋 One-click copy to clipboard
--   📈 Live execution progress
--   📱 Responsive interface
+</p>
 
-------------------------------------------------------------------------
+<p align="center">
 
-## 🖥️ Live Demo
+<a href="https://quillx-ai.onrender.com/" target="_blank">
+<img src="https://img.shields.io/badge/🚀%20Live%20Demo-Visit%20Now-success?style=for-the-badge">
+</a>
 
-**Application:** https://quillx-ai.onrender.com
+</p>
 
-------------------------------------------------------------------------
+</div>
 
-## 📸 User Interface
+---
 
-### Workspace
+#### 🌟 ***About QuillX-AI***
 
-![QuillX Workspace](ui.png)
+**QuillX-AI** is a Multi-Agent AI Technical Article Generator built using **LangGraph**, **FastAPI**, and **React**.
 
-### Generated Article
+Instead of manually researching, planning, and writing technical blogs, users simply enter a topic and QuillX-AI automatically performs the complete workflow.
 
-![Generated Article](results.png)
+The system coordinates multiple AI agents that work together to:
 
-------------------------------------------------------------------------
+- Understand the request
+- Research relevant sources
+- Generate an article outline
+- Write each section
+- Assemble the final article
+- Export Markdown ready for GitHub, Dev.to, Hashnode, or Medium
 
-## 🏗️ Tech Stack
+---
 
-  Category           Technology
-  ------------------ -----------------------
-  Backend            FastAPI
-  AI Orchestration   LangGraph
-  LLM                Groq
-  Prompt Framework   LangChain
-  Frontend           HTML, CSS, JavaScript
-  Templates          Jinja2
-  Deployment         Docker + Render
+### 🚀 Live Demo
 
-------------------------------------------------------------------------
+- 🌐 Web Application
+> **🔗 [QuillX-AI Live Demo](https://quillx-ai.onrender.com/)**
 
-## 🔄 Agent Workflow
+---
 
-``` text
-User Topic
-      │
-      ▼
+### ***📸 Project Preview***
+
+#### ***Home Dashboard***
+
+<p align="center">
+<img src="./preview/ui.png" width="100%">
+</p>
+
+---
+
+#### ***Final Output***
+
+<p align="center">
+<img src="./preview/results.png" width="100%">
+</p>
+
+---
+
+#### ***Features ✨***
+
+- 🤖 Multi-Agent AI Workflow
+- 📚 Automatic Research
+- 📝 AI Generated Technical Articles
+- 📋 Intelligent Article Planning
+- 📄 Markdown Export
+
+---
+
+### 🧠 Multi-Agent Workflow
+
+```text
+                    User Topic
+                        │
+                        ▼
+             Understand Request Agent
+                        │
+                        ▼
+              Research Sources Agent
+                        │
+                        ▼
+                 Planning Agent
+                        │
+                        ▼
+              Section Writer Agent
+                        │
+                        ▼
+              Markdown Generator
+                        │
+                        ▼
+                Final Article Output
+```
+
+---
+
+#### ⚡ Example Prompt
+
+```text
+Build a production-ready RAG system using LangGraph,
+PostgreSQL and Observability.
+
+Include:
+
+• Architecture
+• Implementation
+• Code Examples
+• Best Practices
+• Deployment
+```
+
+---
+
+### ***Tech Stack  🛠***
+
+- ***Framework & LLM***
+   - LangGraph | LangChain | Groq LLM
+
+- ***Backend***
+   - Python 3.11 | FastAPI | Pydantic | AsyncIO
+
+- ***Frontend***
+   - JavaScript | HTML5 | CSS3
+
+-  ***Deployment***
+    - Docker | Render
+
+---
+
+#### 🧩 AI Workflow
+
+```
 Understand Request
-      │
-      ▼
+        │
+        ▼
 Research Sources
-      │
-      ▼
-Create Article Plan
-      │
-      ▼
+        │
+        ▼
+Create Strategy
+        │
+        ▼
 Write Sections
-      │
-      ▼
-Generate Final Markdown
-      │
-      ▼
-Preview & Download
+        │
+        ▼
+Generate Markdown
+        │
+        ▼
+Download Article
 ```
 
-------------------------------------------------------------------------
+---
 
-## 🎯 Why This Project?
 
-This project demonstrates practical AI engineering skills including:
+---
 
--   Multi-agent orchestration
--   LangGraph state management
--   Prompt engineering
--   FastAPI backend development
--   Modern frontend integration
--   Docker deployment
--   Production-ready project structure
--   Markdown generation pipeline
+####  ***Workflow Stages 🎯***
 
-------------------------------------------------------------------------
+✔ Understand Request
 
-## 🚀 Run Locally
+✔ Research Sources
 
-``` bash
-git clone https://github.com/<your-username>/QuillX-AI.git
-cd QuillX-AI
+✔ Create Article Plan
 
-python -m venv venv
+✔ Write Sections
 
-# Windows
-venv\Scripts\activate
+✔ Generate Markdown
 
-pip install -r requirements.txt
+✔ Export Final Article
 
-uvicorn app:app --reload
-```
+---
 
-Open:
+####  ***Future Improvements***
 
-    http://127.0.0.1:8000
+- AI Image Generation
+- Citation Management
+- PDF Export
+- DOCX Export
+- Multi-language Support
+- SEO Optimization
+- Team Collaboration
+- User Authentication
+- History Dashboard
+- Cloud Storage
+- Version Control
 
-------------------------------------------------------------------------
+---
 
-## 🌍 Deployment
 
-The application is containerized with Docker and deployed on Render.
+### ***Developer 👨‍💻***
 
-Live URL:
+<div align="center">
 
-https://quillx-ai.onrender.com
+#### Ankit Gupta
 
-------------------------------------------------------------------------
+### AI Engineer • AI Backend Developer • GenAI & Agentic AI Developer
 
-## 👨‍💻 Author
+Building intelligent AI systems using
 
-**Ankit Gupta**
+**LangGraph • LangChain • FastAPI • LLMs • Machine Learning • Agentic AI**
 
-If you found this project useful, consider giving the repository a ⭐.
+</div>
+
+---
+
+#### ⭐ Support
+
+- If this project helped you,
+
+- please consider giving it a ⭐ on GitHub.
+
+- It motivates me to continue building high-quality open-source AI projects.
+
+---
+
+<div align="center">
+
+####  ***QuillX-AI ✨***
+
+### Research Smarter. Write Faster. Powered by Multi-Agent AI.
+
+Made with ❤️ by **Ankit Gupta**
+
+</div>
