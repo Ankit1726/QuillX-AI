@@ -29,7 +29,6 @@ from backend.schema import (
     EvidenceItem,
     RouterDecision,
     EvidencePack,
-    ImageSpec,
     GlobalImagePlan,
 )
 
@@ -63,11 +62,11 @@ llm = ChatGroq(
 )
 
 llm_structured = ChatGroq(
-    model="openai/gpt-oss-20b",
-    temperature=0.2,
+    model="llama-3.3-70b-versatile",
+    temperature=0,
     streaming=False,
     rate_limiter=_rate_limiter,
-    max_retries=6,
+    max_retries=5,
 )
 
 
@@ -82,7 +81,8 @@ def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 
     for attempt in range(1, attempts + 1):
         try:
             return structured_runnable.invoke(messages)
-        except Exception as error:  # groq.APIError and friends
+        except Exception as error: 
+
             last_error = error
             message = str(error)
             is_tool_call_glitch = (
@@ -92,10 +92,7 @@ def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 
             )
             if not is_tool_call_glitch or attempt == attempts:
                 raise
-            # brief pause before retrying so we don't immediately
-            # repeat into the same rate-limit window
             import time
-
             time.sleep(1.5 * attempt)
     raise last_error  # pragma: no cover
 
@@ -150,9 +147,6 @@ def tavily_search(query: str, max_results: int = 5) -> List[dict]:
         tool = TavilySearchResults(max_results=max_results)
         results = tool.invoke({"query": query})
     except Exception as error:
-        # Don't let one bad query kill the whole research node —
-        # log it (via exception re-raise info) and return no results
-        # for this query so other queries can still succeed.
         raise RuntimeError(
             f"Tavily search failed for query '{query}': {error}"
         ) from error
@@ -207,9 +201,6 @@ def research_node(state: State) -> dict:
         try:
             raw_results.extend(tavily_search(q, max_results=max_results))
         except RuntimeError:
-            # Skip a failing query instead of crashing the whole run.
-            # If ALL queries fail, raw_results stays empty and we
-            # gracefully fall back to no evidence below.
             continue
 
     if not raw_results:
@@ -229,8 +220,6 @@ def research_node(state: State) -> dict:
             ],
         )
     except Exception as error:
-        # If it's still too large (or Groq rate-limits us) don't
-        # crash the whole run — fall back to no evidence instead.
         if "413" in str(error) or "rate_limit_exceeded" in str(error):
             return {"evidence": []}
         raise
@@ -268,10 +257,6 @@ def orchestrator_node(state: State) -> dict:
 def fanout(state: State):
     plan = state.get("plan")
     if plan is None or not plan.tasks:
-        # No tasks planned — avoid a crash from an empty Send() list
-        # by short-circuiting straight into the reducer with nothing
-        # to merge. Adjust to your own graph if this case shouldn't
-        # be possible in practice.
         raise RuntimeError(
             "orchestrator produced a plan with no tasks; cannot fan out."
         )
@@ -516,11 +501,8 @@ g.add_conditional_edges("orchestrator", fanout, ["worker"])
 g.add_edge("worker", "reducer")
 g.add_edge("reducer", END)
 
-## ---------------------------------------------------------------
+
 ## PostgreSQL Checkpointer
-## Wrapped so a DB connection problem gives ONE clear error message
-## at startup instead of a raw psycopg traceback.
-## ---------------------------------------------------------------
 try:
     DATABASE = get_database()
     if not DATABASE:
