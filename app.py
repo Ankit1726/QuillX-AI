@@ -1,4 +1,4 @@
-import os, logging, uuid, uvicorn, json
+import logging, uuid, uvicorn, json
 
 from pathlib import Path
 from typing import Any, Generator
