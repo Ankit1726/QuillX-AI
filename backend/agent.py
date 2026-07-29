@@ -226,7 +226,7 @@ def research_node(state: State) -> dict:
 
 
 ## Orchestrator Node
-MIN_SECTION_WORDS = 700
+MIN_SECTION_WORDS = 507
 
 
 def _extend_plan_lengths(plan: Plan) -> Plan:
