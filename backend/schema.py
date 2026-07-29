@@ -41,7 +41,7 @@ class Plan(BaseModel):
 class EvidenceItem(BaseModel):
     title: str
     url: str
-    published_at: Optional[str] = None  # keep if Tavily provides; DO NOT rely on it
+    published_at: Optional[str] = None 
     snippet: Optional[str] = None
     source: Optional[str] = None
 
@@ -54,18 +54,3 @@ class RouterDecision(BaseModel):
 
 class EvidencePack(BaseModel):
     evidence: List[EvidenceItem] = Field(default_factory=list)
-
-
-class ImageSpec(BaseModel):
-    placeholder: str = Field(..., description="e.g. [[IMAGE_1]]")
-    filename: str = Field(..., description="Save under images/, e.g. qkv_flow.png")
-    alt: str
-    caption: str
-    prompt: str = Field(..., description="Prompt to send to the image model.")
-    size: Literal["1024x1024", "1024x1536", "1536x1024"] = "1024x1024"
-    quality: Literal["low", "medium", "high"] = "medium"
-
-
-class GlobalImagePlan(BaseModel):
-    md_with_placeholders: str
-    images: List[ImageSpec] = Field(default_factory=list)

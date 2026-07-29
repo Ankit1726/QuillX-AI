@@ -1,5 +1,4 @@
 import os, operator, psycopg
-from pathlib import Path
 from psycopg.rows import dict_row
 from typing import TypedDict, List, Optional, Annotated
 
@@ -21,7 +20,6 @@ from backend.prompt import (
     RESEARCH_SYSTEM,
     ORCH_SYSTEM,
     WORKER_SYSTEM,
-    DECIDE_IMAGES_SYSTEM,
 )
 from backend.schema import (
     Task,
@@ -29,7 +27,6 @@ from backend.schema import (
     EvidenceItem,
     RouterDecision,
     EvidencePack,
-    GlobalImagePlan,
 )
 
 
@@ -41,6 +38,7 @@ def _require_env(name: str) -> str:
             f"Add it to your .env file before starting the server."
         )
     return value
+
 
 _require_env("GROQ_API_KEY")
 _require_env("TAVILY_API_KEY")
@@ -70,7 +68,7 @@ llm_structured = ChatGroq(
 )
 
 
-def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 3):
+def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 5):
     """
     Even with streaming off, Groq's tool-calling can occasionally still
     return a malformed/incomplete tool call (a transient model issue,
@@ -81,7 +79,7 @@ def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 
     for attempt in range(1, attempts + 1):
         try:
             return structured_runnable.invoke(messages)
-        except Exception as error: 
+        except Exception as error:
 
             last_error = error
             message = str(error)
@@ -93,6 +91,7 @@ def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 
             if not is_tool_call_glitch or attempt == attempts:
                 raise
             import time
+
             time.sleep(1.5 * attempt)
     raise last_error  # pragma: no cover
 
@@ -110,10 +109,8 @@ class State(TypedDict):
     # workers
     sections: Annotated[List[tuple[int, str]], operator.add]
 
-    # reducer/image
+    # reducer
     merged_md: str
-    md_with_placeholders: str
-    image_specs: List[dict]
     final: str
 
 
@@ -205,9 +202,6 @@ def research_node(state: State) -> dict:
 
     if not raw_results:
         return {"evidence": []}
-
-    # Cap total items and snippet size sent to the LLM so we stay
-    # under Groq's tokens-per-minute limit (was causing 413 errors).
     trimmed_results = _trim_raw_results(raw_results)
 
     extractor = llm_structured.with_structured_output(EvidencePack)
@@ -232,6 +226,16 @@ def research_node(state: State) -> dict:
 
 
 ## Orchestrator Node
+MIN_SECTION_WORDS = 700
+
+
+def _extend_plan_lengths(plan: Plan) -> Plan:
+    for task in plan.tasks:
+        if not task.target_words or task.target_words < MIN_SECTION_WORDS:
+            task.target_words = MIN_SECTION_WORDS
+    return plan
+
+
 def orchestrator_node(state: State) -> dict:
     planner = llm_structured.with_structured_output(Plan)
     evidence = state.get("evidence", [])
@@ -250,6 +254,7 @@ def orchestrator_node(state: State) -> dict:
             ),
         ],
     )
+    plan = _extend_plan_lengths(plan)
     return {"plan": plan}
 
 
@@ -316,7 +321,12 @@ def worker_node(payload: dict) -> dict:
                     f"requires_citations: {task.requires_citations}\n"
                     f"requires_code: {task.requires_code}\n"
                     f"Bullets:{bullets_text}\n\n"
-                    f"Evidence (ONLY use these URLs when citing):\n{evidence_text}\n"
+                    f"Evidence (ONLY use these URLs when citing):\n{evidence_text}\n\n"
+                    f"Write this section in full, long-form detail — aim for at "
+                    f"least {task.target_words} words. Elaborate with concrete "
+                    f"examples, explanations, and (where relevant) code. Do not "
+                    f"pad with filler, but do not summarize or truncate either; "
+                    f"a short, thin section is a failed section."
                 )
             ),
         ]
@@ -324,163 +334,22 @@ def worker_node(payload: dict) -> dict:
     return {"sections": [(task.id, section_md)]}
 
 
-## ReducerWithImages (subgraph): merge_content -> decide_images -> generate_and_place_images
+## Reducer (subgraph): merge_content -> final markdown
 def merge_content(state: State) -> dict:
 
     plan = state["plan"]
+    assert plan is not None
     ordered_sections = [md for _, md in sorted(state["sections"], key=lambda x: x[0])]
     body = "\n\n".join(ordered_sections).strip()
     merged_md = f"# {plan.blog_title}\n\n{body}\n"
-    return {"merged_md": merged_md}
-
-
-# Decide Images
-def decide_images(state: State) -> dict:
-    planner = llm_structured.with_structured_output(GlobalImagePlan)
-    merged_md = state["merged_md"]
-    plan = state["plan"]
-    assert plan is not None
-
-    try:
-        image_plan = invoke_structured_with_retry(
-            planner,
-            [
-                SystemMessage(content=DECIDE_IMAGES_SYSTEM),
-                HumanMessage(
-                    content=(
-                        f"Blog kind: {plan.blog_kind}\n"
-                        f"Topic: {state['topic']}\n\n"
-                        "Insert placeholders + propose image prompts.\n\n"
-                        f"{merged_md}"
-                    )
-                ),
-            ],
-            attempts=1,  # fail fast into the no-images fallback below
-        )
-    except Exception as error:
-        message = str(error)
-        is_json_or_tool_failure = (
-            "Failed to parse tool call arguments" in message
-            or "Tool call validation failed" in message
-            or "tool_use_failed" in message
-        )
-        if is_json_or_tool_failure:
-            return {
-                "md_with_placeholders": merged_md,
-                "image_specs": [],
-            }
-        raise
-
-    return {
-        "md_with_placeholders": image_plan.md_with_placeholders,
-        "image_specs": [img.model_dump() for img in image_plan.images],
-    }
-
-
-## Generate Images
-def gemini_generate_image_bytes(prompt: str) -> bytes:
-    """
-    Returns raw image bytes generated by Gemini.
-    Requires: pip install google-genai
-    Env var: GOOGLE_API_KEY
-    """
-    from google import genai
-    from google.genai import types
-
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY is not set.")
-
-    client = genai.Client(api_key=api_key)
-
-    resp = client.models.generate_content(
-        model="gemini-2.5-flash-image",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            safety_settings=[
-                types.SafetySetting(
-                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                    threshold="BLOCK_ONLY_HIGH",
-                )
-            ],
-        ),
-    )
-
-    # Depending on SDK version, parts may hang off resp.candidates[0].content.parts
-    parts = getattr(resp, "parts", None)
-    if not parts and getattr(resp, "candidates", None):
-        try:
-            parts = resp.candidates[0].content.parts
-        except Exception:
-            parts = None
-
-    if not parts:
-        raise RuntimeError("No image content returned (safety/quota/SDK change).")
-
-    for part in parts:
-        inline = getattr(part, "inline_data", None)
-        if inline and getattr(inline, "data", None):
-            return inline.data
-
-    raise RuntimeError("No inline image bytes found in response.")
-
-
-## Generate + Place Images
-def generate_and_place_images(state: State) -> dict:
-
-    plan = state["plan"]
-    assert plan is not None
-    md = state.get("md_with_placeholders") or state["merged_md"]
-    image_specs = state.get("image_specs", []) or []
-
-    # If no images requested, just write merged markdown
-    if not image_specs:
-        filename = f"{plan.blog_title}.md"
-        Path(filename).write_text(md, encoding="utf-8")
-        return {"final": md}
-
-    images_dir = Path("images")
-    images_dir.mkdir(exist_ok=True)
-
-    for spec in image_specs:
-        placeholder = spec["placeholder"]
-        filename = spec["filename"]
-        out_path = images_dir / filename
-
-        # generate only if needed
-        if not out_path.exists():
-            try:
-                img_bytes = gemini_generate_image_bytes(spec["prompt"])
-                out_path.write_bytes(img_bytes)
-            except Exception as e:
-                # graceful fallback: keep doc usable
-                prompt_block = (
-                    f"> **[IMAGE GENERATION FAILED]** {spec.get('caption','')}\n>\n"
-                    f"> **Alt:** {spec.get('alt','')}\n>\n"
-                    f"> **Prompt:** {spec.get('prompt','')}\n>\n"
-                    f"> **Error:** {e}\n"
-                )
-                md = md.replace(placeholder, prompt_block)
-                continue
-
-        img_md = f"![{spec['alt']}](images/{filename})\n*{spec['caption']}*"
-        md = md.replace(placeholder, img_md)
-
-    filename = f"{plan.blog_title}.md"
-    Path(filename).write_text(md, encoding="utf-8")
-    return {"final": md}
+    return {"merged_md": merged_md, "final": merged_md}
 
 
 ## Build Reducer Subgraph
 reducer_graph = StateGraph(State)
 reducer_graph.add_node("merge_content", merge_content)
-reducer_graph.add_node("decide_images", decide_images)
-reducer_graph.add_node("generate_and_place_images", generate_and_place_images)
 reducer_graph.add_edge(START, "merge_content")
-reducer_graph.add_edge("merge_content", "decide_images")
-reducer_graph.add_edge("decide_images", "generate_and_place_images")
-reducer_graph.add_edge("generate_and_place_images", END)
+reducer_graph.add_edge("merge_content", END)
 reducer_subgraph = reducer_graph.compile()
 
 ## Build Main Graph

@@ -16,12 +16,10 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
 TEMPLATES_DIR = FRONTEND_DIR / "templates"
-IMAGES_DIR = BASE_DIR / "images"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 ## Logging
@@ -43,12 +41,6 @@ app.mount(
     "/static",
     StaticFiles(directory=STATIC_DIR),
     name="static",
-)
-
-app.mount(
-    "/images",
-    StaticFiles(directory=IMAGES_DIR),
-    name="images",
 )
 
 ## Templates
@@ -216,7 +208,6 @@ def stream_workflow(
     - research queries and source count
     - structured article plan
     - completed sections
-    - image-processing status
     - final Markdown
 
     It does not expose private model reasoning.
@@ -513,16 +504,13 @@ def stream_workflow(
                                 "id": "reducer",
                                 "label": "Assemble the final article",
                                 "status": "running",
-                                "detail": (
-                                    "Merging the sections and "
-                                    "planning useful visuals."
-                                ),
+                                "detail": "Merging the sections into the final draft.",
                             }
                         )
 
                         reducer_started_event_sent = True
 
-                # Reducer subgraph: merge
+                # Reducer subgraph: merge sections into the final markdown
                 elif node_name == "merge_content":
                     if not reducer_started_event_sent:
                         yield create_sse_event(
@@ -531,59 +519,12 @@ def stream_workflow(
                                 "id": "reducer",
                                 "label": "Assemble the final article",
                                 "status": "running",
-                                "detail": (
-                                    "Merging the sections and "
-                                    "planning useful visuals."
-                                ),
+                                "detail": "Merging the sections into the final draft.",
                             }
                         )
 
                         reducer_started_event_sent = True
 
-                    yield create_sse_event(
-                        {
-                            "type": "substage",
-                            "id": "merge_content",
-                            "label": "Merged all written sections",
-                            "status": "completed",
-                            "namespace": list(namespace),
-                        }
-                    )
-
-                # Reducer subgraph: image plan
-                elif node_name == "decide_images":
-                    image_specs = node_update.get(
-                        "image_specs",
-                        [],
-                    )
-
-                    if not isinstance(image_specs, list):
-                        image_specs = []
-
-                    yield create_sse_event(
-                        {
-                            "type": "images_planned",
-                            "count": len(image_specs),
-                            "images": image_specs,
-                        }
-                    )
-
-                    yield create_sse_event(
-                        {
-                            "type": "substage",
-                            "id": "decide_images",
-                            "label": (
-                                f"Planned {len(image_specs)} "
-                                "technical visual"
-                                f"{'' if len(image_specs) == 1 else 's'}"
-                            ),
-                            "status": "completed",
-                            "namespace": list(namespace),
-                        }
-                    )
-
-                # Reducer subgraph: image generation and final text
-                elif node_name == "generate_and_place_images":
                     generated_final = node_update.get("final")
 
                     if generated_final:
@@ -592,8 +533,8 @@ def stream_workflow(
                     yield create_sse_event(
                         {
                             "type": "substage",
-                            "id": "generate_images",
-                            "label": "Generated and placed visuals",
+                            "id": "merge_content",
+                            "label": "Merged all written sections",
                             "status": "completed",
                             "namespace": list(namespace),
                         }
