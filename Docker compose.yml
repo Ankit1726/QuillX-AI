@@ -1,0 +1,12 @@
+services:
+  quillx-ai:
+    build: .
+    container_name: quillx-ai
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    env_file:
+      - .env
+    restart: unless-stopped
