@@ -21,3 +21,4 @@ langgraph-checkpoint-sqlite
 langchain-core
 langchain-community
 langchain-groq
+langchain-mistralai
