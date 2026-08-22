@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_groq import ChatGroq
+from langchain_mistralai import ChatMistralAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,11 +40,18 @@ def _require_env(name: str) -> str:
     return value
 
 
+# Groq stays required — router/research/orchestrator (structured output)
+# keep running on it exactly as before, nothing about that path changed.
 _require_env("GROQ_API_KEY")
 _require_env("TAVILY_API_KEY")
 
+# Mistral is optional. If it's not configured, the worker just falls
+# back to the Groq writer model below instead of crashing the app.
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")
 
-## LLM
+
+## LLM (Groq) — router, research extraction, orchestrator planning,
+## and the fallback writer if Mistral isn't configured.
 _rate_limiter = InMemoryRateLimiter(
     requests_per_second=0.15,
     check_every_n_seconds=0.1,
@@ -59,12 +67,27 @@ llm = ChatGroq(
 )
 
 llm_structured = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="openai/gpt-oss-20b",
     temperature=0,
     streaming=False,
     rate_limiter=_rate_limiter,
     max_retries=5,
 )
+
+
+WRITER_MODEL = os.environ.get("MISTRAL_WRITER_MODEL", "mistral-large-latest")
+
+llm_writer = llm  # default: Groq writer (unchanged behavior)
+using_mistral_writer = False
+
+if MISTRAL_API_KEY:
+    llm_writer = ChatMistralAI(
+        model=WRITER_MODEL,
+        temperature=0.5,
+        streaming=True,
+        max_retries=6,
+    )
+    using_mistral_writer = True
 
 
 def invoke_structured_with_retry(structured_runnable, messages, attempts: int = 5):
@@ -281,6 +304,20 @@ def fanout(state: State):
 
 
 ## Worker Node
+def _invoke_writer_with_fallback(messages):
+    """
+    Try the configured heavy writer first (Mistral, if configured).
+    If it errors out for any reason, fall back to the Groq writer so a
+    single provider hiccup doesn't fail the whole section/run.
+    """
+    try:
+        return llm_writer.invoke(messages)
+    except Exception:
+        if llm_writer is llm:
+            raise
+        return llm.invoke(messages)
+
+
 def worker_node(payload: dict) -> dict:
     task = Task(**payload["task"])
     plan = Plan(**payload["plan"])
@@ -300,7 +337,7 @@ def worker_node(payload: dict) -> dict:
             for e in evidence[:20]
         )
 
-    section_md = llm.invoke(
+    section_md = _invoke_writer_with_fallback(
         [
             SystemMessage(content=WORKER_SYSTEM),
             HumanMessage(
