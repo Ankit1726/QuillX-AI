@@ -1,16 +1,17 @@
-import os
+from pathlib import Path
 from dotenv import load_dotenv
+
 load_dotenv()
 
-def get_database():
-    db_url = os.getenv("DATABASE_URL")
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CHECKPOINT_DB_PATH = DATA_DIR / "checkpoints.sqlite"
 
-    if not db_url:
-        raise ValueError(
-            "Database Error ⚠️"
-        )
 
-    if "sslmode" not in db_url:
-        seperator = "&" if "?" in db_url else "?"
-        db_url = f"{db_url}{seperator}sslmode=require"
-    return db_url
+def get_database() -> str:
+    """
+    Returns the local SQLite file path used for the LangGraph
+    checkpointer. Kept as a function (same name/shape as before) so
+    backend/agent.py doesn't need to change how it calls this.
+    """
+    return str(CHECKPOINT_DB_PATH)
