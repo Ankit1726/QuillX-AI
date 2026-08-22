@@ -6,7 +6,6 @@ from typing import List, Optional, Literal
 class Task(BaseModel):
     id: int
     title: str
-
     goal: str = Field(
         ...,
         description="One sentence describing what the reader should be able to do/understand after this section.",
@@ -20,7 +19,6 @@ class Task(BaseModel):
     target_words: int = Field(
         ..., description="Target word count for this section (120–550)."
     )
-
     tags: List[str] = Field(default_factory=list)
     requires_research: bool = False
     requires_citations: bool = False
@@ -41,7 +39,7 @@ class Plan(BaseModel):
 class EvidenceItem(BaseModel):
     title: str
     url: str
-    published_at: Optional[str] = None 
+    published_at: Optional[str] = None
     snippet: Optional[str] = None
     source: Optional[str] = None
 
