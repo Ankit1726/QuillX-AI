@@ -1,10 +1,9 @@
-import os, operator, psycopg
-from psycopg.rows import dict_row
+import os, operator, sqlite3
 from typing import TypedDict, List, Optional, Annotated
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
@@ -365,28 +364,26 @@ g.add_conditional_edges(
     "router", route_next, {"research": "research", "orchestrator": "orchestrator"}
 )
 g.add_edge("research", "orchestrator")
-
 g.add_conditional_edges("orchestrator", fanout, ["worker"])
 g.add_edge("worker", "reducer")
 g.add_edge("reducer", END)
 
 
-## PostgreSQL Checkpointer
 try:
-    DATABASE = get_database()
-    if not DATABASE:
-        raise RuntimeError("get_database() returned an empty connection string.")
+    CHECKPOINT_DB_PATH = get_database()
+    if not CHECKPOINT_DB_PATH:
+        raise RuntimeError("get_database() returned an empty path.")
 
-    _conn = psycopg.connect(DATABASE, autocommit=True, row_factory=dict_row)
+    _conn = sqlite3.connect(CHECKPOINT_DB_PATH, check_same_thread=False)
 
-    checkpointer = PostgresSaver(_conn)
+    checkpointer = SqliteSaver(_conn)
     checkpointer.setup()
 
 except Exception as error:
     raise RuntimeError(
-        "Could not connect to / initialize the Postgres checkpointer. "
-        "Check that Postgres is running and that your DATABASE env var "
-        f"(used inside backend.db.get_database) is correct.\nOriginal error: {error}"
+        "Could not initialize the local SQLite checkpointer. Check that "
+        "the ./data directory is writable.\n"
+        f"Original error: {error}"
     ) from error
 
 app = g.compile(checkpointer=checkpointer)
